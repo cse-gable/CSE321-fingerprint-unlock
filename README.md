@@ -24,4 +24,8 @@ Here is my configuration for reference
 
 Project use
 
-1. Start by pressing the enrollment mode button. Follow the on screen instructions
+1. Start by pressing the enrollment mode button. Follow the on screen instructions . 
+2. Press the normal mode button to return to the normal mode, from there you can use the fingerprint module with the previously enrolled finger to unlock the door via the servo motor.
+
+   You can enroll up to 100 fingerprints on the module.
+   This device is meant as a prototype and proof of concept for a fingerprint verifcation lock for a door.
