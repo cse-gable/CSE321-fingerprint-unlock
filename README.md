@@ -29,3 +29,6 @@ Project use
 
    You can enroll up to 100 fingerprints on the module.
    This device is meant as a prototype and proof of concept for a fingerprint verifcation lock for a door.
+
+
+For the ML.csv , I ended up using excel to randomly generate values for the columns. Using =RANDBETWEEN(bottom, top) function in excel for random number in range generation.
