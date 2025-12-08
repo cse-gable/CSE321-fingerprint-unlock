@@ -18,11 +18,11 @@ Adafruit_ST7789 screen = Adafruit_ST7789(screen_CS, screen_DC, screen_RST);
 //waveshare LCD modules 1.69 inch example code
 //AS608 example code
 
-int button_presses; 
-int failed_attempts;
+int button_presses = 0; 
+int failed_attempts = 0;
 
 
-unsigned long time_since_lastunlock;
+unsigned long time_since_lastunlock = 0;
 
 
 SoftwareSerial fingerSerial(6, 7); // RX = RD , TX = TD <----- source of many issues
@@ -33,7 +33,7 @@ Servo doorServo;
 const int P_SERVO = 9;
 const int OPEN_POSITION = 90;
 const int CLOSED_POSITION = 0;
-const unsigned long AUTO_CLOSE_TIME = 3000;
+const unsigned long AUTO_CLOSE_TIME = 700;
 
 const int B_ENROLL = 12;
 const int B_NORMAL = 3;
@@ -55,7 +55,31 @@ Mode currentMode = NORMAL;
 3. Log successful unlock , reset failed attempts and time since unlock  , +++ reasoning - tampering , fraud  security metrics , door should not be open for too long
   3 features -- failed attempts ,  button presses, time since unlock
 */
+/*
+Data from offline logistic regression classifier training
 
+Weights ->>>  [[1.751 1.132 0.005]]
+B = Bias ->>>>  [-7.898]
+z = B + W1X1 + W2X2 + W3X3
+
+sigmoid func =  1/(1 + e^-z)
+*/
+bool validate_data(float x1, float x2, float x3){
+
+
+    float bias = -7.898;
+    float w1 = 1.751;
+    float w2 = 1.132;
+    float w3 = 0.005; 
+  
+  
+    float z = bias + w1 * x1 + w2*x2 + w3 * x3;
+  
+  
+    float logi = 1.0 / (1.0  + (exp(-(double)z)));
+
+    return (logi >= 1.0); //Returns true if fail
+}  
 
 void increment_button_presses(){
 button_presses++;
@@ -140,9 +164,32 @@ void loop() {
     delay(500);
   } else {
       
+        showStatus("Normal mode ","place finger", "");
     // NORMAL MODE: Scan to unlock
     int id = getFingerprintID();
+
+
     if (id >= 0) {
+
+          //Run through logistic regression
+    bool t =  validate_data(failed_attempts, button_presses, time_since_lastunlock);
+
+    Serial.print("attempts: ");
+    Serial.println(failed_attempts);
+
+    Serial.print("btn presses: ");
+    Serial.println(button_presses);
+
+    Serial.print("time since: ");
+    Serial.println(time_since_lastunlock);
+
+
+    if(t){
+      Serial.println("not suspicious");
+    }else{
+   Serial.println(" suspicious");
+    }
+
      showStatus("Match", "found", "welcome");
       //TODO output to LCD that we have found a match
       Serial.println(id);
@@ -163,16 +210,18 @@ void HandleButtons() {
   if (digitalRead(B_ENROLL) == LOW) {
     Serial.println("Enroll button pressed → Entering ENROLL MODE");
     currentMode = ENROLL;
+      increment_button_presses();
     delay(500);
   }
 
   if (digitalRead(B_NORMAL) == LOW) {
     Serial.println("Normal Mode button pressed → Returning to NORMAL MODE");
     currentMode = NORMAL;
+      increment_button_presses();
     delay(500);
   }
 
-  increment_button_presses();
+
 
 }
 
@@ -264,34 +313,7 @@ bool enrollFingerprint(int id) {
   return true;
 }
 
-/*
-Data from offline logistic regression classifier training
 
-Weights ->>>  [[2.55e+00 1.88e+00 6.19e-04]]
-B = Bias ->>>>  [-9.87]
-
-z = B + W1X1 + W2X2 + W3X3
-
-sigmoid func =  1/(1 + e^-z)
-*/
-bool validate_data(int x1, int x2, int x3){
-
-
-  float bias = -9.87;
-  float w1 = 2.55;
-  float w2 = 1.88;
-  float w3 = 6.19; 
-
-
-  float z = bias + w1 * x1 + w2*x2 + w3 * x3;
-
-
-  float logi = 1.0 / (1.0  + (exp(-(double)z)));
-
-
-
-
-}
 
 /*/
 Display image  : we input a message and display it to the LCD screen
@@ -306,8 +328,15 @@ IF there is no match or an error then we expect to return -1 indicating failure.
 int getFingerprintID() {
 
   finger.getImage();
-  if (finger.image2Tz() != FINGERPRINT_OK) return -1;
-  if (finger.fingerFastSearch() != FINGERPRINT_OK) return -1;
+  if (finger.image2Tz() != FINGERPRINT_OK) {
+     failed_attempts++; 
+     return -1;
+  }
+  if (finger.fingerFastSearch() != FINGERPRINT_OK) {
+    
+     failed_attempts++;
+     return -1;
+  }
   return finger.fingerID;
 }
 
